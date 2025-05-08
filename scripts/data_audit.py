@@ -7,7 +7,12 @@ import sys
 import argparse
 import csv
 import re
-from sf_field_usage_single import analyze_fields, check_sfdx_installed, run_sfdx_command
+import datetime
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+from search_fieldUsage import analyze_fields, check_sfdx_installed, run_sfdx_command
 
 # Define objects and their fields to analyze
 # This structure allows you to easily add or modify objects and fields to audit
@@ -173,13 +178,8 @@ def run_audit(objects_to_audit=None, batch_size=5000, use_full_dataset=True):
             print(f"No fields configured for {object_name}, skipping")
             continue
         
-        # Use sf_field_usage_single to analyze fields
-        results = analyze_fields(
-            object_name, 
-            fields, 
-            batch_size=batch_size, 
-            use_full_dataset=use_full_dataset
-        )
+        # Use search_fieldUsage to analyze fields
+        results = analyze_fields(object_name, fields)
         
         # Add to audit results
         audit_results[object_name] = results

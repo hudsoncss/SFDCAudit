@@ -3,6 +3,11 @@
 # REQUIRES search_flows.py to be in the same directory
 # REQUIRES search_apex.py to be in the same directory
 # REQUIRES search_objects.py to be in the same directory
+# REQUIRES search_fieldUsage.py to be in the same directory
+# REQUIRES search_packages.py to be in the same directory
+# REQUIRES search_fields.py to be in the same directory
+# REQUIRES search_reports.py to be in the same directory
+# REQUIRES webhook_sender.py to be in the same directory
 
 import subprocess
 import json
@@ -21,9 +26,7 @@ ATTRIBUTION_KEYWORDS = [
     'touch',
     'touchpoint',
     'influence',
-    'influenced',
     'model',
-    'credit',
     'campaign',
     'source',
     'conversion',
@@ -34,8 +37,7 @@ ATTRIBUTION_KEYWORDS = [
 ATTRIBUTION_PACKAGES = [
     'biz',
     'scaleMatters',
-    'FullCircle',
-    'LeanData',
+    'fcir',
     'pi'
 ]
 
@@ -74,14 +76,14 @@ STANDARD_OBJECTS_TO_CHECK = [
 #                      MODULE IMPORTS AND INITIALIZATION
 # =============================================================================
 
-# Import functions from sf_field_usage_single.py
+# Import functions from search_fieldUsage.py
 try:
-    # Get the path to sf_field_usage_single.py in the same directory as this script
+    # Get the path to search_fieldUsage.py in the same directory as this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    field_usage_path = os.path.join(script_dir, 'sf_field_usage_single.py')
+    field_usage_path = os.path.join(script_dir, 'search_fieldUsage.py')
     
     # Import the module using importlib
-    spec = util.spec_from_file_location("sf_field_usage_single", field_usage_path)
+    spec = util.spec_from_file_location("search_fieldUsage", field_usage_path)
     field_usage_module = util.module_from_spec(spec)
     spec.loader.exec_module(field_usage_module)
     
@@ -91,7 +93,7 @@ try:
     check_sfdx_installed = field_usage_module.check_sfdx_installed
     HAS_FIELD_USAGE_MODULE = True
 except ImportError as e:
-    print(f"Warning: Could not import sf_field_usage_single.py: {e}")
+    print(f"Warning: Could not import search_fieldUsage.py: {e}")
     print("Field usage analysis will be disabled.")
     HAS_FIELD_USAGE_MODULE = False
 
@@ -130,6 +132,73 @@ except ImportError as e:
     print(f"Warning: Could not import search_objects.py: {e}")
     print("Advanced object search will be disabled.")
     HAS_SEARCH_OBJECTS_MODULE = False
+
+# Import functions from search_reports.py
+try:
+    # Get the path to search_reports.py in the same directory as this script
+    search_reports_path = os.path.join(script_dir, 'search_reports.py')
+    
+    # Import the module using importlib
+    spec = util.spec_from_file_location("search_reports", search_reports_path)
+    search_reports_module = util.module_from_spec(spec)
+    spec.loader.exec_module(search_reports_module)
+    
+    # Get the necessary functions
+    search_reports_and_dashboards_summary = search_reports_module.search_reports_and_dashboards_summary
+    HAS_SEARCH_REPORTS_MODULE = True
+except ImportError as e:
+    print(f"Warning: Could not import search_reports.py: {e}")
+    print("Advanced report and dashboard search will be disabled.")
+    HAS_SEARCH_REPORTS_MODULE = False
+
+# Import functions from search_packages.py
+try:
+    # Get the path to search_packages.py in the same directory as this script
+    search_packages_path = os.path.join(script_dir, 'search_packages.py')
+    
+    # Import the module using importlib
+    spec = util.spec_from_file_location("search_packages", search_packages_path)
+    search_packages_module = util.module_from_spec(spec)
+    spec.loader.exec_module(search_packages_module)
+    
+    # Get the necessary functions
+    search_packages_multi_terms = search_packages_module.search_packages_multi_terms
+    HAS_SEARCH_PACKAGES_MODULE = True
+except ImportError as e:
+    print(f"Warning: Could not import search_packages.py: {e}")
+    print("Advanced package search will be disabled.")
+    HAS_SEARCH_PACKAGES_MODULE = False
+
+# Import functions from search_fields.py
+try:
+    # Get the path to search_fields.py in the same directory as this script
+    search_fields_path = os.path.join(script_dir, 'search_fields.py')
+    
+    # Import the module using importlib
+    spec = util.spec_from_file_location("search_fields", search_fields_path)
+    search_fields_module = util.module_from_spec(spec)
+    spec.loader.exec_module(search_fields_module)
+    
+    # Get the necessary functions
+    search_fields_multi_terms = search_fields_module.search_fields_multi_terms
+    HAS_SEARCH_FIELDS_MODULE = True
+except ImportError as e:
+    print(f"Warning: Could not import search_fields.py: {e}")
+    print("Advanced field search will be disabled.")
+    HAS_SEARCH_FIELDS_MODULE = False
+
+# Try to import webhook_sender
+try:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    webhook_path = os.path.join(script_dir, 'webhook_sender.py')
+    spec = util.spec_from_file_location("webhook_sender", webhook_path)
+    webhook_module = util.module_from_spec(spec)
+    spec.loader.exec_module(webhook_module)
+    HAS_WEBHOOK_MODULE = True
+except ImportError as e:
+    print(f"Warning: Could not import webhook_sender.py: {e}")
+    print("Webhook integration will be disabled.")
+    HAS_WEBHOOK_MODULE = False
 
 
 def run_sfdx(cmd):
@@ -220,166 +289,66 @@ def check_object_exists(object_name):
     return object_name in sobjects
 
 
-def check_campaign_influence_model_exists():
-    """Check if Campaign Influence Model object exists
-    
-    Returns:
-        Boolean indicating if it exists
-    """
-    # Use force:org:display to get authentication info for the Tooling API
-    auth_cmd = [
-        "sfdx",
-        "force:org:display",
-        "--json"
-    ]
-    
-    auth_result = run_sfdx(auth_cmd)
-    if not auth_result or auth_result.get("status") != 0:
-        print("Failed to get org authentication details")
-        return False
-    
-    # Extract instance URL and access token
-    instance_url = auth_result["result"].get("instanceUrl")
-    access_token = auth_result["result"].get("accessToken")
-    
-    if not instance_url or not access_token:
-        print("Missing instanceUrl or accessToken in SFDX response")
-        return False
-    
-    # Use the Tooling API to check for CampaignInfluenceModel
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-    
-    # First check if CampaignInfluenceModel exists by describing
-    url = f"{instance_url}/services/data/v53.0/sobjects/CampaignInfluenceModel/describe"
-    
-    try:
-        response = requests.get(url, headers=headers)
-        # If we get a 200 response, the object exists
-        return response.status_code == 200
-    except Exception:
-        # If there's an error, the object probably doesn't exist
-        return False
-
-
 def check_campaign_influence_enabled():
-    """Check for indicators that Campaign Influence is enabled
+    """Check if Campaign Influence is enabled in the org using Tooling API
     
     Returns:
-        True if indicators suggest Campaign Influence is enabled
+        True if Campaign Influence is enabled, False otherwise
     """
-    # First check if CampaignInfluenceModel exists
-    model_exists = check_campaign_influence_model_exists()
+    print("Checking Campaign Influence settings...")
     
-    if model_exists:
-        return True
-    
-    # Second approach: check Campaign object for influence fields
-    cmd = [
-        "sfdx",
-        "force:schema:sobject:describe",
-        "-s", "Campaign",
-        "--json"
-    ]
-    
-    result = run_sfdx(cmd)
-    if not result:
-        return False
-    
-    # Look for fields that indicate Campaign Influence is enabled
-    influence_fields = ['NumberOfInfluencedOpportunities', 'InfluencedRevenue', 'CampaignInfluenceMultipleModelEnabled']
-    
-    campaign_fields = [field["name"] for field in result["result"]["fields"]]
-    for field in influence_fields:
-        if field in campaign_fields:
-            return True
-    
-    return False
-
-
-def check_influence_data():
-    """Check for Campaign Influence data
-    
-    Returns:
-        Boolean indicating if data exists
-    """
-    # First check if Campaign Influence is enabled
-    if not check_campaign_influence_enabled():
-        return False
-    
-    # Now try to check for data without relying on the CampaignInfluence object
-    # We'll check if there are Opportunities with CampaignInfluence relation
-    
-    # Use force:org:display to get authentication info for the Tooling API
-    auth_cmd = [
-        "sfdx",
-        "force:org:display",
-        "--json"
-    ]
-    
+    # Get org auth details first
+    auth_cmd = "sfdx force:org:display --json"
     auth_result = run_sfdx(auth_cmd)
-    if not auth_result or auth_result.get("status") != 0:
+    
+    if not auth_result or 'result' not in auth_result:
+        print("Could not get org authentication details")
         return False
     
     # Extract instance URL and access token
-    instance_url = auth_result["result"].get("instanceUrl")
-    access_token = auth_result["result"].get("accessToken")
+    instance_url = auth_result['result'].get('instanceUrl')
+    access_token = auth_result['result'].get('accessToken')
     
     if not instance_url or not access_token:
+        print("Missing instanceUrl or accessToken in auth response")
         return False
     
-    # Use the Tooling API to check for CampaignInfluence data indicators
+    # Use REST API to check Campaign Influence settings
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
     
-    # Check for Campaign fields that would indicate influence
     try:
-        # Try to check for Campaign Influence report types
-        url = f"{instance_url}/services/data/v53.0/query"
-        query = "SELECT Id FROM ReportType WHERE Name LIKE '%Campaign Influence%' LIMIT 1"
-        params = {"q": query}
+        # Query the CampaignInfluenceSettings object using Tooling API
+        url = f"{instance_url}/services/data/v53.0/tooling/query?q=SELECT+Id,IsModelEnabled,ModelType+FROM+CampaignInfluenceSettings"
+        response = requests.get(url, headers=headers)
         
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("totalSize", 0) > 0:
+        if response.status_code != 200:
+            print(f"Error querying Campaign Influence settings: {response.status_code}")
+            return False
+        
+        # Parse the response
+        settings = response.json()
+        records = settings.get('records', [])
+        
+        if not records:
+            print("No Campaign Influence settings found")
+            return False
+        
+        # Check if any model is enabled
+        for record in records:
+            if record.get('IsModelEnabled'):
+                model_type = record.get('ModelType', 'Unknown')
+                print(f"Campaign Influence is enabled with model type: {model_type}")
                 return True
         
-        # Try to check for Custom Report Types related to Campaign Influence
-        query = "SELECT Id FROM ReportType WHERE DeveloperName LIKE '%CampaignInfluence%' LIMIT 1"
-        params = {"q": query}
+        print("Campaign Influence is not enabled")
+        return False
         
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("totalSize", 0) > 0:
-                return True
-    
-    except Exception:
-        # If there's an error, just move on to the next check
-        pass
-    
-    # As a fallback, check if Campaigns have influence-related fields populated
-    try:
-        url = f"{instance_url}/services/data/v53.0/query"
-        query = "SELECT Id FROM Campaign WHERE NumberOfInfluencedOpportunities > 0 LIMIT 1"
-        params = {"q": query}
-        
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("totalSize", 0) > 0:
-                return True
-    
-    except Exception:
-        # If there's an error, just return false
-        pass
-    
-    return False
+    except Exception as e:
+        print(f"Error checking Campaign Influence settings: {str(e)}")
+        return False
 
 
 def check_installed_packages(namespaces):
@@ -391,22 +360,75 @@ def check_installed_packages(namespaces):
     Returns:
         Dictionary mapping namespace to installation status
     """
-    cmd = [
-        "sfdx",
-        "force:package:installed:list",
-        "--json"
-    ]
+    print("Checking for attribution-related packages...")
     
-    result = run_sfdx(cmd)
-    if not result:
+    if not HAS_SEARCH_PACKAGES_MODULE:
+        print("Advanced package search is not available - search_packages.py module not loaded")
+        # Return all packages as not found if module isn't available
         return {namespace: False for namespace in namespaces}
     
-    installed_namespaces = {pkg.get("NamespacePrefix", "").lower() for pkg in result["result"]}
-    return {namespace: namespace.lower() in installed_namespaces for namespace in namespaces}
+    try:
+        # Use the search_packages_multi_terms function from the imported module
+        results = search_packages_multi_terms(namespaces)
+        return results
+        
+    except Exception as e:
+        print(f"Error using search_packages.py: {str(e)}")
+        # Return all packages as not found on error
+        return {namespace: False for namespace in namespaces}
 
 
 def check_custom_schema(keywords):
     """Check for attribution-related fields in standard objects.
+    
+    Args:
+        keywords: List of keywords to look for in field names
+        
+    Returns:
+        Dictionary mapping object names to lists of matching field names
+    """
+    print("\nChecking for attribution-related fields in standard objects...")
+    
+    if not HAS_SEARCH_FIELDS_MODULE:
+        print("Advanced field search is not available - search_fields.py module not loaded")
+        return {obj: [] for obj in STANDARD_OBJECTS_TO_CHECK}
+    
+    try:
+        # Use the search_fields_multi_terms function from the imported module
+        results = search_fields_multi_terms(
+            objects=STANDARD_OBJECTS_TO_CHECK,
+            search_terms=keywords
+        )
+        
+        # Convert the results to match the expected format
+        formatted_results = {}
+        for obj in STANDARD_OBJECTS_TO_CHECK:
+            matching_fields = set()
+            # Check each search term's results for this object
+            for term_results in results.values():
+                if obj in term_results:
+                    # Add the field names to our set
+                    matching_fields.update(
+                        field['name'] for field in term_results[obj]
+                    )
+            formatted_results[obj] = sorted(list(matching_fields))
+            
+            # Print summary for this object
+            if matching_fields:
+                print(f"Found {len(matching_fields)} matching fields in {obj}")
+            else:
+                print(f"No matching fields found in {obj}")
+        
+        return formatted_results
+        
+    except Exception as e:
+        print(f"Error using search_fields.py: {str(e)}")
+        print("Falling back to simple field search...")
+        return check_custom_schema_fallback(keywords)
+
+
+def check_custom_schema_fallback(keywords):
+    """Fallback method to check for attribution-related fields in standard objects.
     
     Args:
         keywords: List of keywords to look for in field names
@@ -450,7 +472,7 @@ def analyze_field_usage_for_objects(custom_schema):
         Dictionary mapping object names to dictionaries of field usage data
     """
     if not HAS_FIELD_USAGE_MODULE:
-        print("Field usage analysis is not available - sf_field_usage_single.py module not loaded")
+        print("Field usage analysis is not available - search_fieldUsage.py module not loaded")
         return None
     
     results = {}
@@ -565,34 +587,22 @@ def check_reports_dashboards(keywords):
     Returns:
         Dictionary mapping "Report_{keyword}" and "Dashboard_{keyword}" to existence status
     """
-    results = {}
+    print("Checking for attribution-related reports and dashboards...")
     
-    for kw in keywords:
-        # Check reports
-        report_query = f"SELECT Id FROM Report WHERE Name LIKE '%{kw}%' OR Description LIKE '%{kw}%' LIMIT 1"
-        report_cmd = [
-            "sfdx",
-            "force:data:soql:query",
-            "-q", report_query,
-            "-r", "json"
-        ]
-        
-        report_result = run_sfdx(report_cmd)
-        results[f"Report_{kw}"] = report_result and report_result["result"]["totalSize"] > 0
-        
-        # Check dashboards
-        dash_query = f"SELECT Id FROM Dashboard WHERE Title LIKE '%{kw}%' OR Description LIKE '%{kw}%' LIMIT 1"
-        dash_cmd = [
-            "sfdx",
-            "force:data:soql:query",
-            "-q", dash_query,
-            "-r", "json"
-        ]
-        
-        dash_result = run_sfdx(dash_cmd)
-        results[f"Dashboard_{kw}"] = dash_result and dash_result["result"]["totalSize"] > 0
+    if not HAS_SEARCH_REPORTS_MODULE:
+        print("Advanced report and dashboard search is not available - search_reports.py module not loaded")
+        # Return empty results if module not available
+        return {f"Report_{kw}": False for kw in keywords} | {f"Dashboard_{kw}": False for kw in keywords}
     
-    return results
+    try:
+        # Use the search_reports_and_dashboards_summary function from the imported module
+        results = search_reports_module.search_reports_and_dashboards_summary(keywords)
+        return results
+        
+    except Exception as e:
+        print(f"Error using search_reports.py: {str(e)}")
+        # Return empty results on error
+        return {f"Report_{kw}": False for kw in keywords} | {f"Dashboard_{kw}": False for kw in keywords}
 
 
 def check_apex_references(keywords):
@@ -1198,10 +1208,14 @@ def main():
     code_keywords = ['CampaignInfluence', 'Attribution', 'Touchpoint']
     flow_keywords = ['CampaignInfluence', 'Attribution', 'Touch', 'Influence', 'Credit']
     
-    # Initialize audit results with empty values
+    # Get company name for output file
+    company_name = get_company_name()
+    
+    # Initialize audit results with company name and purpose
     audit_results = {
+        'company_name': company_name,
+        'purpose': 'Attribution Audit',
         'campaign_influence_enabled': False,
-        'influence_data_present': False,
         'installed_packages': {namespace: False for namespace in package_namespaces},
         'custom_schema_matches': {},
         'attribution_custom_objects': [],
@@ -1234,7 +1248,6 @@ def main():
         print("\nChecking Campaign Influence configuration...")
         try:
             audit_results['campaign_influence_enabled'] = check_campaign_influence_enabled()
-            audit_results['influence_data_present'] = check_influence_data()
         except Exception as e:
             print(f"Error checking Campaign Influence: {str(e)}")
         
@@ -1298,8 +1311,7 @@ def main():
                     audit_results['field_usage_data'] = field_usage_data
             except Exception as e:
                 print(f"Error analyzing field usage: {str(e)}")
-                import traceback
-                traceback.print_exc()
+                print("Field usage analysis is not available - search_fieldUsage.py module not loaded")
         
         # Get company name for output file
         company_name = get_company_name()
@@ -1363,6 +1375,17 @@ def main():
                     print("These custom campaign types may be part of a specific marketing attribution strategy:")
                     for campaign_type in custom_types:
                         print(f"  - {campaign_type}")
+        
+        # After saving to JSON file, send to webhook if available
+        if HAS_WEBHOOK_MODULE:
+            print("\nSending results to webhook...")
+            try:
+                if webhook_module.send_to_webhook(audit_results, 'attribution_audit'):
+                    print("Successfully sent results to webhook")
+                else:
+                    print("Failed to send results to webhook")
+            except Exception as e:
+                print(f"Error sending to webhook: {str(e)}")
         
     except Exception as e:
         print(f"Error performing audit: {str(e)}")
