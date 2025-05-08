@@ -65,7 +65,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+manifest
+force-app
 # Virtual Environment
 venv/
 env/
