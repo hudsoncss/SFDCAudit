@@ -1,0 +1,61 @@
+{
+  "potential_duplicates": [],
+  "overlapping_object_operations": [],
+  "similar_field_logic": [],
+  "process_type_distribution": {
+    "AutoLaunchedFlow": 12,
+    "Flow": 1
+  },
+  "business_process_groups": [
+    {
+      "process": "update",
+      "flows": [
+        {
+          "label": "OPP - Audit Status Updates",
+          "filename": "3011K0000019ugwQAA.json"
+        },
+        {
+          "label": "Opportunity - Close Month Update_1",
+          "filename": "301Pq00000YUz10IAD.json"
+        },
+        {
+          "label": "Opp Products - Update ARR/MRR/NRR",
+          "filename": "301Pq00000YVCZBIA5.json"
+        },
+        {
+          "label": "Opportunity - Lost Updates",
+          "filename": "301Pq00000YVNCtIAP.json"
+        }
+      ]
+    },
+    {
+      "process": "close",
+      "flows": [
+        {
+          "label": "OPPORTUNITY - Closed Creates Snapshot",
+          "filename": "301Pq00000PPs9WIAT.json"
+        },
+        {
+          "label": "Opportunity - Close Month Update_1",
+          "filename": "301Pq00000YUz10IAD.json"
+        }
+      ]
+    },
+    {
+      "process": "stage",
+      "flows": [
+        {
+          "label": "TrayOnOpportunityStageNameCh_ZJlzoO",
+          "filename": "301Pq00000VOwE3IAL.json"
+        },
+        {
+          "label": "TrayOnOpportunityStageNameCh_Z1pubK3",
+          "filename": "301Pq00000VTYpFIAX.json"
+        }
+      ]
+    }
+  ],
+  "consolidation_candidates": [],
+  "summary": "Analysis of 13 flows related to OpportunityLineItem object\n\nProcess Type Distribution:\n- AutoLaunchedFlow: 12 flows\n- Flow: 1 flows\n\nKey Findings:\n- Found 0 potential duplicate flow groups\n- Found 0 groups of flows with overlapping object operations\n- Found 0 groups of flows with similar field logic\n\nBusiness Process Recommendations:\n- Consider consolidating 4 flows related to 'update'\n\nOverall Recommendation: With proper consolidation, you could potentially reduce the number of flows by up to 0 flows, simplifying maintenance and improving reliability.",
+  "object_name": "OpportunityLineItem"
+}
