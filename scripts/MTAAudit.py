@@ -290,7 +290,7 @@ def check_object_exists(object_name):
 
 
 def check_campaign_influence_enabled():
-    """Check if Campaign Influence is enabled in the org using Tooling API
+    """Check if Campaign Influence is enabled in the org by directly querying CampaignInfluenceModel
     
     Returns:
         True if Campaign Influence is enabled, False otherwise
@@ -313,39 +313,26 @@ def check_campaign_influence_enabled():
         print("Missing instanceUrl or accessToken in auth response")
         return False
     
-    # Use REST API to check Campaign Influence settings
+    # Use REST API to directly check for CampaignInfluenceModel
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
     
     try:
-        # Query the CampaignInfluenceSettings object using Tooling API
-        url = f"{instance_url}/services/data/v53.0/tooling/query?q=SELECT+Id,IsModelEnabled,ModelType+FROM+CampaignInfluenceSettings"
-        response = requests.get(url, headers=headers)
+        # Query for CampaignInfluenceModel to check if it exists
+        query_url = f"{instance_url}/services/data/v57.0/query?q=SELECT+Id+FROM+CampaignInfluenceModel+LIMIT+1"
+        print(f"Querying CampaignInfluenceModel: {query_url}")
         
-        if response.status_code != 200:
-            print(f"Error querying Campaign Influence settings: {response.status_code}")
+        model_response = requests.get(query_url, headers=headers)
+        
+        if model_response.status_code == 200:
+            # CampaignInfluenceModel exists, which means Campaign Influence is enabled
+            print("Campaign Influence is enabled - CampaignInfluenceModel object exists")
+            return True
+        else:
+            print(f"CampaignInfluenceModel object does not exist or is not accessible: {model_response.status_code}")
             return False
-        
-        # Parse the response
-        settings = response.json()
-        records = settings.get('records', [])
-        
-        if not records:
-            print("No Campaign Influence settings found")
-            return False
-        
-        # Check if any model is enabled
-        for record in records:
-            if record.get('IsModelEnabled'):
-                model_type = record.get('ModelType', 'Unknown')
-                print(f"Campaign Influence is enabled with model type: {model_type}")
-                return True
-        
-        print("Campaign Influence is not enabled")
-        return False
-        
     except Exception as e:
         print(f"Error checking Campaign Influence settings: {str(e)}")
         return False
@@ -1324,68 +1311,28 @@ def main():
         print(f"\n===== AUDIT RESULTS SAVED =====")
         print(f"Results saved to: {output_filename}")
         
-        # Provide a summary of field usage if available
-        if field_usage_data:
-            print("\n===== FIELD USAGE SUMMARY =====")
-            for object_name, fields_data in field_usage_data.items():
-                print(f"\n{object_name} Attribution Fields:")
-                print("-" * 80)
-                print(f"{'Field':<40} {'Usage %':<10} {'Non-null Records':<20}")
-                print("-" * 80)
-                
-                for field_data in fields_data:
-                    field_name = field_data['field']
-                    usage_pct = field_data['usage_pct']
-                    non_null = field_data['non_null_records']
-                    estimated = "(estimated)" if field_data.get('is_estimated', False) else ""
-                    
-                    print(f"{field_name:<40} {usage_pct:<10.2f} {non_null:<20,d} {estimated}")
-                
-                # Calculate average usage for this object's attribution fields
-                if fields_data:
-                    avg_usage = sum(field['usage_pct'] for field in fields_data) / len(fields_data)
-                    print("-" * 80)
-                    print(f"Average usage: {avg_usage:.2f}%")
+        # Call openai_sender.py to analyze the results
+        try:
+            print("\n===== SENDING TO OPENAI FOR ANALYSIS =====")
+            import subprocess
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            openai_sender_path = os.path.join(script_dir, 'openai_sender.py')
             
-            # Print overall recommendations based on field usage
-            print("\n===== RECOMMENDATIONS =====")
-            low_usage_threshold = 10.0  # Consider fields with less than 10% usage as low usage
+            # Run openai_sender.py with the output file
+            result = subprocess.run(
+                [sys.executable, openai_sender_path, output_filename],
+                capture_output=True,
+                text=True
+            )
             
-            for object_name, fields_data in field_usage_data.items():
-                low_usage_fields = [field['field'] for field in fields_data if field['usage_pct'] < low_usage_threshold]
-                if low_usage_fields:
-                    print(f"\n{object_name}: Consider reviewing the following low-usage attribution fields:")
-                    for field in low_usage_fields:
-                        print(f"  - {field}")
-            
-            # Show campaign member status information if available
-            if 'campaign_member_statuses' in audit_results and audit_results['campaign_member_statuses'].get('has_custom_statuses'):
-                custom_statuses = audit_results['campaign_member_statuses'].get('custom_statuses', [])
-                if custom_statuses:
-                    print("\nCustom Campaign Member Statuses:")
-                    print("These custom statuses may indicate specific campaign tracking processes:")
-                    for status in custom_statuses:
-                        print(f"  - {status}")
-            
-            # Show custom campaign type values if available
-            if 'campaign_type_values' in audit_results and audit_results['campaign_type_values'].get('has_custom_types'):
-                custom_types = audit_results['campaign_type_values'].get('custom_types', [])
-                if custom_types:
-                    print("\nCustom Campaign Type Values:")
-                    print("These custom campaign types may be part of a specific marketing attribution strategy:")
-                    for campaign_type in custom_types:
-                        print(f"  - {campaign_type}")
-        
-        # After saving to JSON file, send to webhook if available
-        if HAS_WEBHOOK_MODULE:
-            print("\nSending results to webhook...")
-            try:
-                if webhook_module.send_to_webhook(audit_results, 'attribution_audit'):
-                    print("Successfully sent results to webhook")
-                else:
-                    print("Failed to send results to webhook")
-            except Exception as e:
-                print(f"Error sending to webhook: {str(e)}")
+            if result.returncode == 0:
+                print("Successfully sent results to OpenAI for analysis")
+                print(result.stdout)
+            else:
+                print("Error sending results to OpenAI:")
+                print(result.stderr)
+        except Exception as e:
+            print(f"Error calling openai_sender.py: {str(e)}")
         
     except Exception as e:
         print(f"Error performing audit: {str(e)}")

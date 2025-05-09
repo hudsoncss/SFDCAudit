@@ -13,7 +13,8 @@ cmd = [
     "-q", query,
     "-r", "json"  # Output the results in JSON format for easier parsing
 ]
-
+# comment somewhere
+# another one
 # Execute the command and capture output
 result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
 
