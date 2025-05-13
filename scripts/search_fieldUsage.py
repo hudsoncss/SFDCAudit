@@ -140,7 +140,7 @@ def get_field_usage_batch(object_name, field_names, total_record_count=None, bat
     
     Args:
         object_name: Name of the Salesforce object to check
-        field_names: List of field names to check usage for
+        field_names: List of field names to check usage for, or comma-separated string
         total_record_count: Total record count (if already known)
         batch_size: Maximum number of records to query in a batch
         use_full_dataset: If True, analyze the full dataset even if large (may take longer)
@@ -148,6 +148,11 @@ def get_field_usage_batch(object_name, field_names, total_record_count=None, bat
     Returns:
         List of dictionaries with usage statistics
     """
+    # Convert string input to list if needed
+    if isinstance(field_names, str):
+        field_names = [field.strip() for field in field_names.split(',')]
+        print(f"Converted string input to list of {len(field_names)} fields: {field_names}")
+    
     if not HAS_PANDAS:
         print("Warning: pandas not available, falling back to individual field analysis")
         return [get_field_usage(object_name, field, total_record_count) for field in field_names]
@@ -499,13 +504,19 @@ def get_field_usage(object_name, field_name, total_record_count=None, sample_siz
     
     Args:
         object_name: Name of the Salesforce object to check
-        field_name: Name of the field to check usage for
+        field_name: Name of the field to check usage for (should be a single field name, not a list or comma-separated string)
         total_record_count: Total record count (if already known)
         sample_size: Maximum number of records to query for sampling (default: 5000)
         
     Returns:
         Dictionary with usage statistics or None if error
     """
+    # Ensure we have a single field name, not a comma-separated string
+    if ',' in field_name:
+        print(f"Warning: field_name '{field_name}' contains commas. This function expects a single field name.")
+        field_name = field_name.split(',')[0].strip()
+        print(f"Using only the first field: '{field_name}'")
+    
     # Get total record count if not provided
     if total_record_count is None:
         total_record_count = get_total_record_count(object_name)
@@ -667,13 +678,18 @@ def analyze_fields(object_name, field_names, batch_size=DEFAULT_BATCH_SIZE, use_
     
     Args:
         object_name: Name of the Salesforce object to analyze
-        field_names: List of field names to analyze
+        field_names: List of field names to analyze, or comma-separated string
         batch_size: Maximum number of records to query in a batch
         use_full_dataset: If True, analyze the full dataset even if large
         
     Returns:
         List of dictionaries with field usage data
     """
+    # Convert string input to list if needed
+    if isinstance(field_names, str):
+        field_names = [field.strip() for field in field_names.split(',')]
+        print(f"Converted string input to list of {len(field_names)} fields: {field_names}")
+    
     # Check if SFDX is installed and authenticated
     check_sfdx_installed()
     
